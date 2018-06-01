@@ -49,6 +49,8 @@ class CustomCollectionViewCell: UICollectionViewCell {
                                     return
                                 }
                                 wself.imageView.image = image
+                                print("info: \(info)")
+                                print("")
                                 
                                 // 各アセットがビデオの時
                                 if (assets.value(forKey: "isVideo") as? Int) == 1{

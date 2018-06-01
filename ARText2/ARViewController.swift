@@ -140,10 +140,8 @@ class ARViewController: UIViewController, ARSCNViewDelegate, UITextFieldDelegate
         
         // カメラロールへのアクセス許可をする関数
         libraryRequestAuthorization()
-        
         // 影を表現する機能をオンにする
         sceneView.autoenablesDefaultLighting = true
-        
         
         // 画面タップのレコナイザを定義(タップされたらhandleTapを呼ぶ)
         let tapGesture = UITapGestureRecognizer(target: self, action: #selector(handleTap(_:)))
@@ -199,67 +197,7 @@ class ARViewController: UIViewController, ARSCNViewDelegate, UITextFieldDelegate
     
     // シャッターボタンが押された時に呼ばれる関数
     @objc func onClickShutterButton(_ sender: UIButton){
-         // 録画開始
-        // ARSCNViewがフレームを検知できなければ処理を終了する
-        guard let currentFrame = self.sceneView.session.currentFrame else{
-            return
-        }
         
-        /* 動画ノード表示用
-        // SpriteKitのフレームワークの一つでビデオノードを生成し，再生する
-        let videoNode = SKVideoNode(fileNamed: "IMG_2006.MOV")
-        videoNode.play()
-        
-        // SKVideoNodeはSpriteKitシーンにのみ追加できるため，SpriteKitシーンを生成
-        // ビデオノードはSpriteKitシーンと同じ大きさにする
-        let skScene = SKScene(size: CGSize(width: 640, height: 480))
-        skScene.addChild(videoNode)
-        videoNode.position = CGPoint(x: skScene.size.width/2, y: skScene.size.height/2)
-        videoNode.size = skScene.size
-        */
-            
-        /* WebView表示用
-        // UIWevViewを表示させることもできる
-        let webView = UIWebView(frame: CGRect(x: 0, y: 0, width: 640, height: 480))
-        let request = URLRequest(url: URL(string: "https://www.kumamoto-u.ac.jp/")!)
-            
-        webView.loadRequest(request)
-        */
-            
-        let myLabel = SKLabelNode(fontNamed: "AppleSDGothicNeo-Bold")
-        myLabel.text = "SpriteKit"
-        myLabel.fontSize = 40
-        myLabel.fontColor = Style().white
-        let skScene = SKScene(size: CGSize(width: 640, height: 480))
-        skScene.backgroundColor = Style().invisivle // 透明にしても文字とSKSceneとの境界がSceneの色になることに注意
-        myLabel.position = CGPoint(x: skScene.size.width/2, y: skScene.size.height/2)
-        skScene.addChild(myLabel)
-            
-            
-        // SceneKitの世界(3Dの世界)で2D平面のSCNPlaneオブジェクトを生成する
-        let tvPlane = SCNPlane(width: 1.0, height: 0.75)
-        //let tvPlane = SCNSphere(radius: 0.2) //
-        tvPlane.name = myLabel.text
-        // diffuse.contentsを使ってtvPlaneに貼り付けてる
-        //tvPlane.firstMaterial?.diffuse.contents = skScene
-        //tvPlane.firstMaterial?.diffuse.contents = webView
-        let material = SCNMaterial()
-        material.diffuse.contents = Style().skyblue
-        tvPlane.materials = [material]
-        tvPlane.firstMaterial?.diffuse.contents = skScene
-            
-        tvPlane.firstMaterial?.isDoubleSided = true
-            
-        let tvPlaneNode = SCNNode(geometry: tvPlane)
-            
-        var translation = matrix_identity_float4x4
-        translation.columns.3.z = -0.5
-            
-        tvPlaneNode.simdTransform = matrix_multiply(currentFrame.camera.transform, translation)
-        tvPlaneNode.eulerAngles = SCNVector3(Double.pi, 0, 0)
-        //tvPlaneNode.eulerAngles = SCNVector3(0, 0, 0)
-        
-        self.sceneView.scene.rootNode.addChildNode(tvPlaneNode)
     }
     
     // 画面がタップされた時に呼ばれる関数(tapGestureから)
@@ -295,7 +233,7 @@ class ARViewController: UIViewController, ARSCNViewDelegate, UITextFieldDelegate
     }
     // イメージ追加ボタンが押された時に呼ばれる関数
     @objc private func onClickToPutImageButton(_ sender: UIButton){
-        UIView.animate(withDuration: 0.3, delay: 0.0, animations: {
+        UIView.animate(withDuration: 0.4, delay: 0.0, animations: {
             self.imagesCollectionView.center.y -= self.view.frame.height
         }, completion: nil)
     }
@@ -306,7 +244,7 @@ class ARViewController: UIViewController, ARSCNViewDelegate, UITextFieldDelegate
     }
     // imgeCollectionViewを下に戻すアニメーション
     func imageCollectionViewBackAnimation(){
-        UIView.animate(withDuration: 0.3, delay: 0.0, animations: {
+        UIView.animate(withDuration: 0.4, delay: 0.0, animations: {
             self.imagesCollectionView.center.y += self.view.frame.height
         }, completion: nil)
     }
@@ -412,7 +350,18 @@ class ARViewController: UIViewController, ARSCNViewDelegate, UITextFieldDelegate
     
     // Cellがタップされた時呼ばれる関数
     func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
-        
+        // getURL関数を呼ぶためにAssetsHandlingのインスタンス生成
+        let assetsHandling = AssetsHandling()
+        assetsHandling.getURL(ofPhotoWith: imagesAssets[indexPath.row], completionHandler: {(responseURL, type) in
+            switch type {
+            case 0: // image
+                self.putImageInScene(url: responseURL!)
+            case 1: // video
+                self.putVideoInScene(url: responseURL!)
+            default:
+                return
+            }
+        })
         print("Num: \(indexPath.row)")
         imageCollectionViewBackAnimation() // 下げる
     }
@@ -427,6 +376,84 @@ class ARViewController: UIViewController, ARSCNViewDelegate, UITextFieldDelegate
         
         return cell
     }
+    
+    // 画像を空間に配置する関数
+    func putImageInScene(url: URL) {
+        // ARSCNViewがフレームを検知できなければ処理を終了する
+        guard let currentFrame = self.sceneView.session.currentFrame else{
+            print("currentFrame enable")
+            return
+        }
+        do {
+            let imageData: Data = try Data(contentsOf: url)
+            let img = UIImage(data: imageData)
+            let texture = SKTexture(image: img!)
+            let imageSpriteNode = SKSpriteNode(texture: texture)
+            
+            let skScene = SKScene(size: CGSize(width: 640, height: 480))
+            skScene.addChild(imageSpriteNode)
+            imageSpriteNode.position = CGPoint(x: skScene.size.width/2, y: skScene.size.height/2)
+            imageSpriteNode.size = skScene.size
+            
+            // SceneKitの世界(3Dの世界)で2D平面のSCNPlaneオブジェクトを生成する
+            let backgroundPlane = SCNPlane(width: 1.0, height: 0.75)
+            // diffuse.contentsを使ってbackgroundPlaneに貼り付けてる
+            backgroundPlane.firstMaterial?.diffuse.contents = skScene
+            let material = SCNMaterial()
+            material.diffuse.contents = Style().skyblue
+            backgroundPlane.materials = [material]
+            backgroundPlane.firstMaterial?.diffuse.contents = skScene
+            backgroundPlane.firstMaterial?.isDoubleSided = true
+            
+            let imageNode = SCNNode(geometry: backgroundPlane)
+            var translation = matrix_identity_float4x4
+            translation.columns.3.z = -0.5
+            imageNode.simdTransform = matrix_multiply(currentFrame.camera.transform, translation)
+            imageNode.eulerAngles = SCNVector3(Double.pi, 0, 0)
+
+            self.sceneView.scene.rootNode.addChildNode(imageNode)
+            
+        } catch {
+            print("error in getting imageData")
+        }
+    }
+    
+    // 動画を空間に配置する関数
+    func putVideoInScene(url: URL) {
+        // ARSCNViewがフレームを検知できなければ処理を終了する
+        guard let currentFrame = self.sceneView.session.currentFrame else{
+            print("currentFrame enable")
+            return
+        }
+        
+        let videoSpriteNode = SKVideoNode(url: url)
+        videoSpriteNode.play()
+        
+        let skScene = SKScene(size: CGSize(width: 640, height: 480))
+        skScene.addChild(videoSpriteNode)
+        videoSpriteNode.position = CGPoint(x: skScene.size.width/2, y: skScene.size.height/2)
+        videoSpriteNode.size = skScene.size
+        
+        // SceneKitの世界(3Dの世界)で2D平面のSCNPlaneオブジェクトを生成する
+        let backgroundPlane = SCNPlane(width: 1.0, height: 0.75)
+        // diffuse.contentsを使ってbackgroundPlaneに貼り付けてる
+        backgroundPlane.firstMaterial?.diffuse.contents = skScene
+        let material = SCNMaterial()
+        material.diffuse.contents = Style().skyblue
+        backgroundPlane.materials = [material]
+        backgroundPlane.firstMaterial?.diffuse.contents = skScene
+        backgroundPlane.firstMaterial?.isDoubleSided = true
+        
+        let videoNode = SCNNode(geometry: backgroundPlane)
+        var translation = matrix_identity_float4x4
+        translation.columns.3.z = -0.5
+        videoNode.simdTransform = matrix_multiply(currentFrame.camera.transform, translation)
+        videoNode.eulerAngles = SCNVector3(Double.pi, 0, 0)
+        //tvPlaneNode.eulerAngles = SCNVector3(0, 0, 0)
+        
+        self.sceneView.scene.rootNode.addChildNode(videoNode)
+    }
+    
     
     //(以下デフォルト)-------------------------------------------------------------------------------
     override func viewWillAppear(_ animated: Bool) {
